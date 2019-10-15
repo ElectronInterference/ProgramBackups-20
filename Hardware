@@ -3,6 +3,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.hardware.bosch.BNO055IMU;
@@ -13,6 +14,14 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.bosch.BNO055IMU;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import java.util.List;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer.CameraDirection;
+import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
+import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 
 
     /* 
@@ -37,6 +46,20 @@ import com.qualcomm.hardware.bosch.BNO055IMU;
 
 public class HardwareBot {
     
+    //The vuforia files
+    private static final String TFOD_MODEL_ASSET = "Skystone.tflite";
+    private static final String LABEL_FIRST_ELEMENT = "Stone";
+    private static final String LABEL_SECOND_ELEMENT = "Skystone";
+
+
+    // stores an instance of the vuforia localizer engine
+    private VuforiaLocalizer vuforia;
+
+    // stores an instance of the TensorFlow Object Detector engine
+    private TFObjectDetector tfod = null;
+    
+    // the key that allows us to use vuforia
+    private static final String VUFORIA_KEY = "ARZ9jK3/////AAABmUUaXNvhrkixjdVoQTApe8pKkOSgBAzrh4w49x76evPSBhJPD9ODNLDRoctaDi+4NXihmNZvGN0xSQfWqVc43szbn4ZQzKGAqkQo/GgHbVqADcuwbyEfGYnm7bC9FbbWQmik6swfX1uQo//lK+zHLote6GO5p63tORZ9VWZQjiBMMU8oqKWZmNmLGxsOz/8Xw1mrZodbIu7hUMkjEVbgxhONut4XPReM2Q2sipOZKy0YxSiWBTaXNvLi2egkhXAFL8F9DOatuzQyZdobssqwbDQ7emn1EP+OqgqbzJdV9C0YibdGb2+Sxzeppy+wUYAqBiCs7eHGVLuzqq6IPHxSTtvNYC5+JhWWJNx1Qyz7p1zm";
     
     //Drive Motors
     public DcMotor  flDrive   = null;
@@ -59,6 +82,8 @@ public class HardwareBot {
     public float gear_ratio = 1; // PLACEHOLDER VALUE
     public float strafing_efficiency = 0; // PLACEHOLDER VALUE
     public double distance_per_rotation = wheel_diameter*3.14159625357989*gear_ratio;
+    
+    
 
     
     HardwareMap hwMap           =  null;
@@ -72,8 +97,12 @@ public class HardwareBot {
     
     
     public void init(HardwareMap ahwMap) {
+        
         hwMap = ahwMap;
-
+        
+//        int cameraMonitorViewId = appContext.getResources().getIdentifier("cameraMonitorViewId", "id", appContext.getPackageName());
+//        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
+        
         // Define motors
         flDrive  = hwMap.get(DcMotor.class, "flDrive");
         frDrive  = hwMap.get(DcMotor.class, "frDrive");
@@ -100,6 +129,28 @@ public class HardwareBot {
         frDrive.setDirection(DcMotor.Direction.FORWARD);
         blDrive.setDirection(DcMotor.Direction.FORWARD);
         brDrive.setDirection(DcMotor.Direction.FORWARD);
+        
+        // The TFObjectDetector uses the camera frames from the VuforiaLocalizer, so we create that
+        // first.
+        initVuforia();
+
+        if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
+            initTfod();
+        } else {
+            
+        }
+
+        /**
+         * Activate TensorFlow Object Detection before we wait for the start command.
+         * Do it here so that the Camera Stream window will have the TensorFlow annotations visible.
+         **/
+        if (tfod != null) {
+            tfod.activate();
+        }
+
+        /** Wait for the game to begin */
+        
+
     }
     
     //moves a specified number of inches
@@ -159,4 +210,66 @@ public class HardwareBot {
             }
         }
     }
+    
+    //Strafe right a number of inches
+    public void driveRight(double power, double targetDistance) {
+        
+        //Reset the motor encoders
+        blDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        brDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        frDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        
+        //set the motors to run to a position
+        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        
+        //set the target position to target inches times the number of encoder counts in an inch
+        int target = (int)(distance_per_rotation * targetDistance);
+        blDrive.setTargetPosition(-target);
+        brDrive.setTargetPosition(target);
+        flDrive.setTargetPosition(target);
+        frDrive.setTargetPosition(-target);
+        
+        //start the motors at the inputted power
+        flDrive.setPower(Math.abs(power * 0.7));
+        frDrive.setPower(Math.abs(power));
+        blDrive.setPower(Math.abs(power));
+        brDrive.setPower(Math.abs(power));
+        
+        //Wait until one of the motors has reached it's goal or the program has been stopped
+        while(flDrive.isBusy() && frDrive.isBusy() && blDrive.isBusy() && brDrive.isBusy() ) {
+            //Loop body can be empty
+        }
+    }
+    private void initVuforia() {
+        /*
+         * Configure Vuforia by creating a Parameter object, and passing it to the Vuforia engine.
+         */
+        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
+
+        parameters.vuforiaLicenseKey = VUFORIA_KEY;
+        parameters.cameraDirection = CameraDirection.BACK;
+
+        //  Instantiate the Vuforia engine
+        vuforia = ClassFactory.getInstance().createVuforia(parameters);
+
+        // Loading trackables is not necessary for the TensorFlow Object Detection engine.
+    }
+
+    /**
+     * Initialize the TensorFlow Object Detection engine.
+     */
+    private void initTfod() {
+        int tfodMonitorViewId = hwMap.appContext.getResources().getIdentifier(
+            "tfodMonitorViewId", "id", hwMap.appContext.getPackageName());
+        TFObjectDetector.Parameters tfodParameters = new TFObjectDetector.Parameters(tfodMonitorViewId);
+        tfodParameters.minimumConfidence = 0.6;
+        tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
+        tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_FIRST_ELEMENT, LABEL_SECOND_ELEMENT);
+    }
 }
+
+    
