@@ -1,0 +1,80 @@
+
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.util.Hardware;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+@TeleOp(name="TeleOpProto", group="Linear Opmode")
+
+public class TeleOpProto extends LinearOpMode {
+
+    HardwareBot robot   = new HardwareBot();   // Use a Pushbot's hardware
+    
+    int mode = 0; // 0 is tank, 1 is mecanum.
+    int intakeMode = 0; // 0 is manual, 1 is automatic
+    
+    double angle = 0;
+    
+    @Override
+    public void runOpMode() {
+        
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
+        
+        robot.init(hardwareMap);
+        
+        waitForStart();
+        
+        while (opModeIsActive()) {
+            
+            //drive tank
+            driveTank(gamepad1.left_stick_y, gamepad1.right_stick_y);
+            
+            //intake
+            if(intakeMode == 0) {
+                if(gamepad1.left_bumper) {
+                    robot.lIntake.setPower(1);
+                    robot.rIntake.setPower(1);
+                } else if(gamepad1.right_bumper) {
+                    robot.lIntake.setPower(-1);
+                    robot.rIntake.setPower(-1);
+                }
+            }
+        }
+    }
+    
+    //drive tank style
+    private void driveTank(float left,float right) {
+        
+        //set the motors to run blindly
+        robot.flDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        robot.blDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        robot.frDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        robot.brDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        
+        
+        //set the power of the motors
+        robot.flDrive.setPower(left);
+        robot.blDrive.setPower(left);
+        robot.frDrive.setPower(right);
+        robot.brDrive.setPower(right);
+    }
+    
+    private void mecanum(double angle, double power) {
+        
+        //set the motors to run blindly
+        robot.flDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        robot.blDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        robot.frDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        robot.brDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        
+        //set the power of the motors
+        robot.flDrive.setPower(Math.sin((angle + 1/4*3.1416) * power));
+        robot.blDrive.setPower(Math.sin((angle - 1/4*3.1416)) * power);
+        robot.frDrive.setPower(Math.sin((angle + 1/4*3.1416)) * power);
+        robot.brDrive.setPower(Math.sin((angle - 1/4*3.1416)) * power);
+    }
+}
