@@ -54,6 +54,7 @@ public class HardwareBot {
     private static final String LABEL_FIRST_ELEMENT = "Stone";
     private static final String LABEL_SECOND_ELEMENT = "Skystone";
 
+    boolean isStopRequested = false;
 
     // stores an instance of the vuforia localizer engine
     private VuforiaLocalizer vuforia;
@@ -84,8 +85,9 @@ public class HardwareBot {
     // Drive variables
     public int wheel_diameter = 4;
     public float gear_ratio = 1; // PLACEHOLDER VALUE
-    public float strafing_efficiency = 0; // PLACEHOLDER VALUE
-    public double distance_per_rotation = wheel_diameter*3.14159625357989*gear_ratio;
+    public double strafing_efficiency = 0.5; // PLACEHOLDER VALUE
+    public int units_per_rotation = 1440;
+    public double distance_per_rotation = (gear_ratio * units_per_rotation) / (wheel_diameter*3.14159625357989);
     
     
 
@@ -120,8 +122,8 @@ public class HardwareBot {
         lClaw = hwMap.get(Servo.class, "lClaw");
         rClaw = hwMap.get(Servo.class, "rClaw");
         
-        lIntake = hwMap.get(DcMotor.class, "lCenterIntake");
-        rIntake = hwMap.get(DcMotor.class, "rCenterIntake");
+        lIntake = hwMap.get(DcMotor.class, "lIntake");
+        rIntake = hwMap.get(DcMotor.class, "rIntake");
         
         //set all motors to use encoders
         flDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -134,10 +136,14 @@ public class HardwareBot {
         rIntake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         
         // Set the direction of the motors
-        flDrive.setDirection(DcMotor.Direction.FORWARD);
-        frDrive.setDirection(DcMotor.Direction.REVERSE);
-        blDrive.setDirection(DcMotor.Direction.FORWARD);
-        brDrive.setDirection(DcMotor.Direction.REVERSE);
+        flDrive.setDirection(DcMotor.Direction.REVERSE);
+        frDrive.setDirection(DcMotor.Direction.FORWARD);
+        blDrive.setDirection(DcMotor.Direction.REVERSE);
+        brDrive.setDirection(DcMotor.Direction.FORWARD);
+        lIntake.setDirection(DcMotor.Direction.REVERSE);
+        rIntake.setDirection(DcMotor.Direction.FORWARD);
+        
+        
         
         //initialize the gyro sensor
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
@@ -180,15 +186,9 @@ public class HardwareBot {
         
         // reset the encoders
         flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        
-        // set the motors to run to a specified position
-        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        frDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        blDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        brDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         
         // set the motors to run to the set number of inches, accounting for ratios
         flDrive.setTargetPosition((int)(distance*distance_per_rotation));
@@ -196,18 +196,42 @@ public class HardwareBot {
         blDrive.setTargetPosition((int)(distance*distance_per_rotation));
         brDrive.setTargetPosition((int)(distance*distance_per_rotation)); 
         
+        // set the motors to run to a specified position
+        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        
         // start the motors
         flDrive.setPower(1);
         frDrive.setPower(1);
         blDrive.setPower(1);
         brDrive.setPower(1);
         
+        //Wait until one of the motors has reached it's goal or the program has been stopped
+        while(flDrive.isBusy() && frDrive.isBusy() && blDrive.isBusy() && brDrive.isBusy() && !isStopRequested) {
+            //Loop body can be empty
+        }
+        
+        // start the motors
+        flDrive.setPower(0);
+        frDrive.setPower(0);
+        blDrive.setPower(0);
+        brDrive.setPower(0);
+        
+        // just in case
+        flDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        frDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        blDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        brDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        
+        
     }
     
     //Turn a desired number of degrees
     public void turnDegrees(int target) {
         //try to turn four times. This improves precision
-        for(int i = 0; i < 4; i ++) {
+        for(int i = 0; i < 3; i ++) {
             
             //Run the motors without encoders
             blDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -224,12 +248,26 @@ public class HardwareBot {
             //if we need to turn left...
             if(currentAngle > target) {
                 //turn left
+                blDrive.setPower(0.3);
+                flDrive.setPower(0.3);
+                brDrive.setPower(-0.3);
+                frDrive.setPower(-0.3);
+                
+                while(currentAngle > target) {
+                    currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+                }
+            
+            } else if(currentAngle < target) {
+                
+                //turn right
                 blDrive.setPower(-0.3);
                 flDrive.setPower(-0.3);
                 brDrive.setPower(0.3);
                 frDrive.setPower(0.3);
                 
-          
+                while(currentAngle < target && !isStopRequested) {
+                    currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+                }
             }
         }
     }
@@ -243,29 +281,44 @@ public class HardwareBot {
         flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         frDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         
-        //set the motors to run to a position
-        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         
         //set the target position to target inches times the number of encoder counts in an inch
-        int target = (int)(distance_per_rotation * targetDistance);
+        int target = (int)(distance_per_rotation * targetDistance / strafing_efficiency);
         blDrive.setTargetPosition(-target);
         brDrive.setTargetPosition(target);
         flDrive.setTargetPosition(target);
         frDrive.setTargetPosition(-target);
         
+         //set the motors to run to a position
+        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        
         //start the motors at the inputted power
-        flDrive.setPower(Math.abs(power * 0.7));
+        flDrive.setPower(Math.abs(power));
         frDrive.setPower(Math.abs(power));
         blDrive.setPower(Math.abs(power));
         brDrive.setPower(Math.abs(power));
         
         //Wait until one of the motors has reached it's goal or the program has been stopped
-        while(flDrive.isBusy() && frDrive.isBusy() && blDrive.isBusy() && brDrive.isBusy() ) {
+        while(flDrive.isBusy() && frDrive.isBusy() && blDrive.isBusy() && brDrive.isBusy() && !isStopRequested) {
             //Loop body can be empty
         }
+        
+        // start the motors
+        flDrive.setPower(0);
+        frDrive.setPower(0);
+        blDrive.setPower(0);
+        brDrive.setPower(0);
+        
+        // just in case
+        flDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        frDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        blDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        brDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        
+        
     }
     private void initVuforia() {
         /*
@@ -345,3 +398,5 @@ public class HardwareBot {
         return stoneValue;
     }
 }
+
+    
