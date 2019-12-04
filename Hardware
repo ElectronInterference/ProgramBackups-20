@@ -3,6 +3,13 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import java.util.OptionalDouble;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
+import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
+import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -11,6 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.hardware.bosch.BNO055IMU;
@@ -24,15 +32,22 @@ import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.firstinspires.ftc.robotcore.external.navigation.AngleUnit.DEGREES;
+import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.XYZ;
+import static org.firstinspires.ftc.robotcore.external.navigation.AxesOrder.YZX;
+import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.EXTRINSIC;
     /* 
     * Robot Functions
     ****************************************** Complete ***********************************************
     *
     * moveInches(float distance [inches]) - Moves a specified number of inches - void
     * turnDegrees(int degrees [degrees clockwise]) - Turns a specified number of degrees - void
-    * Strafe(int distance [inches], direction [degrees]) - strafes in any direction
+    * StrafeRight(int distance [inches], direction [degrees]) - strafes in any direction
     *
-    
+    *
     ***************************************** Incomplete **********************************************
     *
     * 
@@ -54,10 +69,14 @@ public class HardwareBot {
     private static final String LABEL_FIRST_ELEMENT = "Stone";
     private static final String LABEL_SECOND_ELEMENT = "Skystone";
 
+    boolean isStopRequested = false;
 
     // stores an instance of the vuforia localizer engine
     private VuforiaLocalizer vuforia;
-
+    
+    // stores the last location of the robot for vuforia
+    OpenGLMatrix lastLocation = null;
+    
     // stores an instance of the TensorFlow Object Detector engine
     private TFObjectDetector tfod = null;
     
@@ -73,10 +92,10 @@ public class HardwareBot {
     
     
     public DcMotor  lift         = null;
-    public DcMotor  arm          = null;
+    public DcMotorEx  arm          = null; // different object so that we can  adjust PID settings
     
-    public Servo lClaw           = null; 
-    public Servo rClaw           = null; 
+    public Servo claw           = null; 
+    public Servo hand           = null; 
     
     public DcMotor lIntake = null;
     public DcMotor rIntake  = null;
@@ -84,11 +103,12 @@ public class HardwareBot {
     // Drive variables
     public int wheel_diameter = 4;
     public float gear_ratio = 1; // PLACEHOLDER VALUE
-    public float strafing_efficiency = 0; // PLACEHOLDER VALUE
-    public double distance_per_rotation = wheel_diameter*3.14159625357989*gear_ratio;
+    public double strafing_efficiency = 0.5; // PLACEHOLDER VALUE
+    public int units_per_rotation = 1440;
+    public double distance_per_rotation = (gear_ratio * units_per_rotation) / (wheel_diameter*3.14159625357989);
     
     
-
+    //VuforiaTrackables targetsSkyStone = this.vuforia.loadTrackablesFromAsset("Skystone");
     
     HardwareMap hwMap           =  null;
     
@@ -104,8 +124,8 @@ public class HardwareBot {
         
         hwMap = ahwMap;
         
-//        int cameraMonitorViewId = appContext.getResources().getIdentifier("cameraMonitorViewId", "id", appContext.getPackageName());
-//        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
+        //int cameraMonitorViewId = appContext.getResources().getIdentifier("cameraMonitorViewId", "id", appContext.getPackageName());
+        //VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
         
         // Define motors
         flDrive  = hwMap.get(DcMotor.class, "flDrive");
@@ -115,13 +135,13 @@ public class HardwareBot {
         
         
         lift  = hwMap.get(DcMotor.class, "lift");
-        arm  = hwMap.get(DcMotor.class, "arm");
+        arm  = hwMap.get(DcMotorEx.class, "arm");
         
-        lClaw = hwMap.get(Servo.class, "lClaw");
-        rClaw = hwMap.get(Servo.class, "rClaw");
+        claw = hwMap.get(Servo.class, "claw");
+        hand = hwMap.get(Servo.class, "hand");
         
-        lIntake = hwMap.get(DcMotor.class, "lCenterIntake");
-        rIntake = hwMap.get(DcMotor.class, "rCenterIntake");
+        lIntake = hwMap.get(DcMotor.class, "lIntake");
+        rIntake = hwMap.get(DcMotor.class, "rIntake");
         
         //set all motors to use encoders
         flDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -129,15 +149,21 @@ public class HardwareBot {
         blDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         brDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        arm.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        arm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm.setTargetPosition(0);
+        arm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         lIntake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         rIntake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         
         // Set the direction of the motors
-        flDrive.setDirection(DcMotor.Direction.FORWARD);
-        frDrive.setDirection(DcMotor.Direction.REVERSE);
-        blDrive.setDirection(DcMotor.Direction.FORWARD);
-        brDrive.setDirection(DcMotor.Direction.REVERSE);
+        flDrive.setDirection(DcMotor.Direction.REVERSE);
+        frDrive.setDirection(DcMotor.Direction.FORWARD);
+        blDrive.setDirection(DcMotor.Direction.REVERSE);
+        brDrive.setDirection(DcMotor.Direction.FORWARD);
+        lIntake.setDirection(DcMotor.Direction.REVERSE);
+        rIntake.setDirection(DcMotor.Direction.FORWARD);
+        
+        arm.setTargetPositionTolerance(0);
         
         //initialize the gyro sensor
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
@@ -166,29 +192,31 @@ public class HardwareBot {
          * Activate TensorFlow Object Detection before we wait for the start command.
          * Do it here so that the Camera Stream window will have the TensorFlow annotations visible.
          **/
-        if (tfod != null) {
+/**     if (tfod != null) {
             tfod.activate();
         }
-
+        
+        
+        
+        VuforiaTrackable stoneTarget = targetsSkyStone.get(0);
+        stoneTarget.setName("Stone Target");
+        
+        
+        targetsSkyStone.activate();
         /** Wait for the game to begin */
         
-
+        
+     
     }
     
     //moves a specified number of inches
-    public void moveInches(float distance) {
+    public void moveInches(double power, float distance) {
         
         // reset the encoders
         flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        
-        // set the motors to run to a specified position
-        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        frDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        blDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        brDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         
         // set the motors to run to the set number of inches, accounting for ratios
         flDrive.setTargetPosition((int)(distance*distance_per_rotation));
@@ -196,18 +224,42 @@ public class HardwareBot {
         blDrive.setTargetPosition((int)(distance*distance_per_rotation));
         brDrive.setTargetPosition((int)(distance*distance_per_rotation)); 
         
+        // set the motors to run to a specified position
+        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        
         // start the motors
-        flDrive.setPower(1);
-        frDrive.setPower(1);
-        blDrive.setPower(1);
-        brDrive.setPower(1);
+        flDrive.setPower(power);
+        frDrive.setPower(power);
+        blDrive.setPower(power);
+        brDrive.setPower(power);
+        
+        //Wait until one of the motors has reached it's goal or the program has been stopped
+        while(flDrive.isBusy() && frDrive.isBusy() && blDrive.isBusy() && brDrive.isBusy() && !isStopRequested) {
+            //Loop body can be empty
+        }
+        
+        // start the motors
+        flDrive.setPower(0);
+        frDrive.setPower(0);
+        blDrive.setPower(0);
+        brDrive.setPower(0);
+        
+        // just in case
+        flDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        frDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        blDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        brDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        
         
     }
     
     //Turn a desired number of degrees
     public void turnDegrees(int target) {
         //try to turn four times. This improves precision
-        for(int i = 0; i < 4; i ++) {
+        for(int i = 0; i < 1; i ++) {
             
             //Run the motors without encoders
             blDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -224,12 +276,26 @@ public class HardwareBot {
             //if we need to turn left...
             if(currentAngle > target) {
                 //turn left
+                blDrive.setPower(0.3);
+                flDrive.setPower(0.3);
+                brDrive.setPower(-0.3);
+                frDrive.setPower(-0.3);
+                
+                while(currentAngle > target) {
+                    currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+                }
+            
+            } else if(currentAngle < target) {
+                
+                //turn right
                 blDrive.setPower(-0.3);
                 flDrive.setPower(-0.3);
                 brDrive.setPower(0.3);
                 frDrive.setPower(0.3);
                 
-          
+                while(currentAngle < target && !isStopRequested) {
+                    currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+                }
             }
         }
     }
@@ -243,35 +309,151 @@ public class HardwareBot {
         flDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         frDrive.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         
-        //set the motors to run to a position
-        blDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        brDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        frDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        flDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        //variables for PI control
+        float startAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle; // the angle before any movement
+        float currentAngle = startAngle; // the current angle
+        List<Float> allAngles = new ArrayList<>(); // the list of past angles that we get an average from
+        float sum = 0; // the sum of the values in the above list
+        float avg = 0; // the average gyro angle during the loop
+        double pMultiplier = 0.05; // the amount the proportional error is multiplied by
+        double iMultiplier = 0.01; // the amount the average error is multiplied by
+        
+        //the power for each motor. We do math to change these then change the actual power to this
+        double flPower = 0;
+        double frPower = 0;
+        double blPower = 0;
+        double brPower = 0;
         
         //set the target position to target inches times the number of encoder counts in an inch
-        int target = (int)(distance_per_rotation * targetDistance);
-        blDrive.setTargetPosition(-target);
-        brDrive.setTargetPosition(target);
-        flDrive.setTargetPosition(target);
-        frDrive.setTargetPosition(-target);
+        int target = (int)(distance_per_rotation * targetDistance / strafing_efficiency);
+        
+        
+        //set the motors to run to a position
+        blDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        brDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        frDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        flDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         
         //start the motors at the inputted power
-        flDrive.setPower(Math.abs(power * 0.7));
-        frDrive.setPower(Math.abs(power));
-        blDrive.setPower(Math.abs(power));
-        brDrive.setPower(Math.abs(power));
-        
-        //Wait until one of the motors has reached it's goal or the program has been stopped
-        while(flDrive.isBusy() && frDrive.isBusy() && blDrive.isBusy() && brDrive.isBusy() ) {
-            //Loop body can be empty
+        if(targetDistance > 0) {
+            flDrive.setPower(Math.abs(power));
+            frDrive.setPower(-Math.abs(power));
+            blDrive.setPower(-Math.abs(power));
+            brDrive.setPower(Math.abs(power));
+        } else if(targetDistance < 0) {
+            flDrive.setPower(-(Math.abs(power)));
+            frDrive.setPower((Math.abs(power)));
+            blDrive.setPower((Math.abs(power)));
+            brDrive.setPower(-(Math.abs(power)));
+        } else {
+            return;
         }
+        
+        if(targetDistance > 0) {
+            // Wait until one of the motors has reached it's goal or the program has been stopped
+            while(((-blDrive.getCurrentPosition() + brDrive.getCurrentPosition() +flDrive.getCurrentPosition() - frDrive.getCurrentPosition()) / 4) < target && !isStopRequested) {
+                
+                //get the current gyro angle
+                currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+                
+                //store the current gyro error in the list of angles
+                allAngles.add(currentAngle - startAngle);
+                
+                //set sum to the sum of all the angles
+                for(Float vals : allAngles) {
+                    sum += vals;
+                }
+                
+                //get the average angle
+                avg = sum / allAngles.size();
+                
+                // strafe
+                flPower = Math.abs(power);
+                blPower = -(Math.abs(power));
+                frPower = -(Math.abs(power));
+                brPower = Math.abs(power);
+                
+                // P control - account for current offset
+                flPower = flPower + (currentAngle - startAngle) * pMultiplier;
+                blPower = blPower + (currentAngle - startAngle) * pMultiplier;
+                frPower = frPower - (currentAngle - startAngle) * pMultiplier;
+                brPower = brPower - (currentAngle - startAngle) * pMultiplier;
+                
+                // I control - account for constant forces
+                flPower = flPower + (avg) * iMultiplier;
+                blPower = blPower + (avg) * iMultiplier;
+                frPower = frPower - (avg) * iMultiplier;
+                brPower = brPower - (avg) * iMultiplier;
+                
+                
+                //send the calculated power to the motors
+                flDrive.setPower(flPower);
+                blDrive.setPower(blPower);
+                frDrive.setPower(frPower);
+                brDrive.setPower(brPower);
+            }
+        } else {
+            //Wait until one of the motors has reached it's goal or the program has been stopped
+            while(((flDrive.getCurrentPosition() - frDrive.getCurrentPosition() - blDrive.getCurrentPosition() + brDrive.getCurrentPosition()) / 4) > target && !isStopRequested) {
+                //get the current gyro angle
+                currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
+                
+                //store the current gyro in the list of angles
+                allAngles.add(currentAngle - startAngle);
+                
+                //set sum to the sum of all the angles
+                for(Float vals : allAngles) {
+                    sum += vals;
+                }
+                
+                //get the average angle
+                avg = sum / allAngles.size();
+                
+                // strafe
+                flPower = -(Math.abs(power));
+                blPower = Math.abs(power);
+                frPower = Math.abs(power);
+                brPower = -(Math.abs(power));
+                
+                // P control - account for current offset
+                flPower = flPower + (currentAngle - startAngle) * pMultiplier;
+                blPower = blPower + (currentAngle - startAngle) * pMultiplier;
+                frPower = frPower - (currentAngle - startAngle) * pMultiplier;
+                brPower = brPower - (currentAngle - startAngle) * pMultiplier;
+                
+                // I control - account for constant forces
+                flPower = flPower + (avg) * iMultiplier;
+                blPower = blPower + (avg) * iMultiplier;
+                frPower = frPower - (avg) * iMultiplier;
+                brPower = brPower - (avg) * iMultiplier;
+                
+                
+                //send the calculated power to the motors
+                flDrive.setPower(flPower);
+                blDrive.setPower(blPower);
+                frDrive.setPower(frPower);
+                brDrive.setPower(brPower);
+            }
+        }
+        // stop the motors
+        flDrive.setPower(0);
+        frDrive.setPower(0);
+        blDrive.setPower(0);
+        brDrive.setPower(0);
+        
+        // just in case
+        flDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        frDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        blDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
+        brDrive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODERS);
     }
+    
     private void initVuforia() {
         /*
          * Configure Vuforia by creating a Parameter object, and passing it to the Vuforia engine.
          */
-        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
+      int cameraMonitorViewId = hwMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hwMap.appContext.getPackageName());
+        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
 
         parameters.vuforiaLicenseKey = VUFORIA_KEY;
         parameters.cameraDirection = CameraDirection.BACK;
@@ -279,26 +461,25 @@ public class HardwareBot {
         //  Instantiate the Vuforia engine
         vuforia = ClassFactory.getInstance().createVuforia(parameters);
 
-        // Loading trackables is not necessary for the TensorFlow Object Detection engine.
+      // Loading trackables is not necessary for the TensorFlow Object Detection engine.
     }
 
     /**
      * Initialize the TensorFlow Object Detection engine.
      */
     private void initTfod() {
-        int tfodMonitorViewId = hwMap.appContext.getResources().getIdentifier(
-            "tfodMonitorViewId", "id", hwMap.appContext.getPackageName());
+        int tfodMonitorViewId = hwMap.appContext.getResources().getIdentifier("tfodMonitorViewId", "id", hwMap.appContext.getPackageName());
         TFObjectDetector.Parameters tfodParameters = new TFObjectDetector.Parameters(tfodMonitorViewId);
         tfodParameters.minimumConfidence = 0.6;
         tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
         tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_FIRST_ELEMENT, LABEL_SECOND_ELEMENT);
-    }
+  }
     
     public int getStoneX() {
-        
+      
         //the variable that we return. Either a negative error or the location of the stone
         int stoneValue = -1;
-        
+      
         if (tfod != null) {
             // getUpdatedRecognitions() will return null if no new information is available since
             // the last time that call was made.
@@ -318,12 +499,12 @@ public class HardwareBot {
             stoneValue = -3;
         }
         return stoneValue;
-    }
+  }
+    
     public int getStoneY() {
         
-        //the variable that we return. Either a negative error or the location of the stone
+      //the variable that we return. Either a negative error or the location of the stone
         int stoneValue = -1;
-        
         if (tfod != null) {
             // getUpdatedRecognitions() will return null if no new information is available since
             // the last time that call was made.
@@ -342,6 +523,53 @@ public class HardwareBot {
         } else {
             stoneValue = -3;
         }
+      return stoneValue;
+  }
+    
+    //gets the x value of a skystone
+    public int getSkyStoneX() {
+        
+        
+      //the variable that we return. Either a negative error or the location of the stone
+        int stoneValue = -1;
+/*      
+        if (tfod != null) {
+            // getUpdatedRecognitions() will return null if no new information is available since
+            // the last time that call was made.
+            List<Recognition> updatedRecognitions = tfod.getUpdatedRecognitions();
+            if (updatedRecognitions != null) {
+                for (Recognition recognition : updatedRecognitions) {
+                    if(recognition.getLabel() == "Skystone") { 
+                        stoneValue = ((int)(recognition.getTop()));
+                    } else {
+                        stoneValue = -1;
+                    }
+                }
+            } else {
+                stoneValue = -2;
+            }
+        } else {
+            stoneValue = -3;
+        }
         return stoneValue;
-    }
+        
+        
+        
+        /*
+        List<VuforiaTrackable> allTrackables = new ArrayList<VuforiaTrackable>();
+        allTrackables.addAll(targetsSkyStone);
+        
+        // check all the trackable targets to see which one (if any) is visible.
+        boolean targetVisible = false;
+        for (VuforiaTrackable trackable : allTrackables) {
+            if (((VuforiaTrackableDefaultListener)trackable.getListener()).isVisible()) {
+                targetVisible = true;
+            }
+        }
+        if (targetVisible) {
+            
+            
+        }*/
+    return -1;
+  }
 }
