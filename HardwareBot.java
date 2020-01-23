@@ -405,12 +405,6 @@ public class HardwareBot {
                 frPower = frPower - (total) * iMultiplier;
                 brPower = brPower - (total) * iMultiplier;
                 
-                // pseudo D control - don't turn too fast
-                //flPower = flPower - (dMultiplier * flPower);
-                //blPower = blPower - (dMultiplier * blPower);
-                //frPower = frPower - (dMultiplier * frPower);
-                //brPower = brPower - (dMultiplier * brPower);
-                
                 //send the calculated power to the motors
                 flDrive.setPower(flPower);
                 blDrive.setPower(blPower);
