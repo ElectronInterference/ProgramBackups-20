@@ -380,10 +380,6 @@ public class HardwareBot {
                 //get the current gyro angle
                 currentAngle = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
                 
-
-                
-                
-                
                 //get the average angle
                 total += currentAngle - startAngle;
                 
