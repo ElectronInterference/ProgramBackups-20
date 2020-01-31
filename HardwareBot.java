@@ -47,7 +47,8 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.
     *
     * moveInches(float distance [inches]) - Moves a specified number of inches - void
     * turnDegrees(int degrees [degrees clockwise]) - Turns a specified number of degrees - void
-    * StrafeRight(int distance [inches], direction [degrees]) - strafes in any direction
+    * StrafeRight(int distance [inches], direction [degrees]) - strafes in any direction - void
+    * GetSkystoneX() - gets the location of a skystone in front of the camera
     *
     *
     ***************************************** Incomplete **********************************************
@@ -59,7 +60,7 @@ import static org.firstinspires.ftc.robotcore.external.navigation.AxesReference.
     * 
     * moveToPosition(int x [inches from left side], int y [inches from audience side] ) - moves to 
     * a specific location on the field - void
-    * detectSkystoneLocation() - looks for a skystone using vuforia - returns distance to the right
+    * 
     * 
     * 
     */
@@ -99,7 +100,9 @@ public class HardwareBot {
     public Servo claw           = null; 
     public Servo hand           = null; 
     public Servo rotator        = null;
-    
+    public Servo lPush          = null;
+    public Servo rPush          = null;
+
     public DcMotor lIntake = null;
     public DcMotor rIntake  = null;
 
@@ -149,6 +152,9 @@ public class HardwareBot {
         claw = hwMap.get(Servo.class, "claw");
         hand = hwMap.get(Servo.class, "hand");
         rotator = hwMap.get(Servo.class, "rotator");
+        lPush = hwMap.get (Servo.class, "lPush");
+        rPush = hwMap.get (Servo.class, "rPush");
+
         
         lIntake = hwMap.get(DcMotor.class, "lIntake");
         rIntake = hwMap.get(DcMotor.class, "rIntake");
@@ -563,5 +569,4 @@ public class HardwareBot {
         return stoneValue;
     }
 }
-
-    
+   
