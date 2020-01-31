@@ -30,6 +30,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -83,24 +84,43 @@ public class JBlockBlueCenter extends LinearOpMode {
     //Wait 50 millis between each loop of the timer and don't delay anything besides that.
     long timerPeriod = 50L;
     long delay = 0L;
-
+    
     int x = -1;
-    int skyStone =-1;
+    int skyStone = -1;
+    int[] locations = new int[5];
+    int curr_slot = 0;
+    
     @Override
     public void runOpMode() {
         
         timer.schedule(checkForStop, delay, timerPeriod);
         
-           robot.init(hardwareMap);
-             //look for the skystone until the program is started
+        robot.init(hardwareMap);
+        
+        //look for the skystone until the program is started
         while(!isStopRequested() && !isStarted()) {
+            telemetry.addData("status ", "initialized.");
+            telemetry.addData("skystone: ", x);
             skyStone = robot.getSkyStoneX();
             if(skyStone >= 0) {
                 x = skyStone;
+                
+                //
+                locations[curr_slot] = skyStone;
+                curr_slot = curr_slot + 1;
+                if(curr_slot >=5) {
+                    curr_slot = 0;
+                }
+                
             }
-       telemetry.addData("stone loacation",x);
-        telemetry.addData("Status", "Initialized");
-        telemetry.update();
+            telemetry.update();
+        }
+        Arrays.sort(locations);
+        if(locations[2] > 400) {
+            //x = locations[2];
+            telemetry.addData("final skystone", x);
+            telemetry.update();
+        }
 
         // Wait for the game to start (driver presses PLAY)
         waitForStart();
@@ -112,16 +132,16 @@ public class JBlockBlueCenter extends LinearOpMode {
             robot.turnDegrees(170);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
-            robot.moveInches(.5,10);
+            robot.moveInches(.5,15);
             robot.lIntake.setPower(0);
             robot.rIntake.setPower(0);
             robot.driveRight(.5,-12);
-            robot.moveInches(.5,65);
+            robot.moveInches(.5,63);
             
             
         }
         else if (x>=500 && x<615){
-           robot.moveInches(.5,-12);
+            robot.moveInches(.5,-11);
             robot.driveRight(.5,-28);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
@@ -133,19 +153,19 @@ public class JBlockBlueCenter extends LinearOpMode {
             robot.moveInches(.5,60);
         }
         else if (x>=600 && x<700){
-            robot.moveInches(.5,-5);
-            robot.driveRight(.5,-30);
+            robot.moveInches(.5,-3);
+            robot.driveRight(.5,-28);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
             robot.moveInches(.5,7);
             robot.lIntake.setPower(0);
             robot.rIntake.setPower(0);
-            robot.driveRight(.5,13);
+            robot.driveRight(.5,11);
             robot.turnDegrees(170);
             robot.moveInches(1,65);
         }
         else {
-             robot.moveInches(.5,-5); 
+            robot.moveInches(.5,-2); 
             robot.driveRight(.5,-30);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
@@ -159,8 +179,8 @@ public class JBlockBlueCenter extends LinearOpMode {
         robot.lIntake.setPower(-1);
         robot.rIntake.setPower(-1);
         robot.moveInches(.5,-25);
-
-        }
     }
 }
+
+
 
