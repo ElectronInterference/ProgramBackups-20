@@ -30,6 +30,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -86,6 +87,8 @@ public class JBlockBlueWall extends LinearOpMode {
 
     int x = -1;
     int skyStone = -1;
+    int[] locations = new int[5];
+    int curr_slot = 0;
     
     @Override
     public void runOpMode() {
@@ -96,15 +99,28 @@ public class JBlockBlueWall extends LinearOpMode {
         
         //look for the skystone until the program is started
         while(!isStopRequested() && !isStarted()) {
+            telemetry.addData("status ", "initialized.");
+            telemetry.addData("skystone: ", x);
             skyStone = robot.getSkyStoneX();
             if(skyStone >= 0) {
                 x = skyStone;
+                
+                //
+                locations[curr_slot] = skyStone;
+                curr_slot = curr_slot + 1;
+                if(curr_slot >=5) {
+                    curr_slot = 0;
+                }
+                
             }
-            telemetry.addData("stone location",x);
-            telemetry.addData("Status", "Initialized");
             telemetry.update();
         }
-        
+        Arrays.sort(locations);
+        if(locations[2] > 400) {
+            //x = locations[2];
+            telemetry.addData("final skystone", x);
+            telemetry.update();
+        }
         runtime.reset();
         if (x>= 400 && x<500){
             robot.moveInches(.5,12);
@@ -112,46 +128,46 @@ public class JBlockBlueWall extends LinearOpMode {
             robot.turnDegrees(170);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
-            robot.moveInches(.5,10);
+            robot.moveInches(.5,15);
             robot.lIntake.setPower(0);
             robot.rIntake.setPower(0);
-            robot.driveRight(.5,-28);
-            robot.moveInches(.5,65);
+            robot.driveRight(.5,-26);
+            robot.moveInches(.5,60);
             
         }
         else if (x>=500 && x<600) {
-            robot.moveInches(.5,-15);
+            robot.moveInches(.5,-11);
             robot.driveRight(.5,-28);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
             robot.moveInches(.5,8);
             robot.lIntake.setPower(0);
             robot.rIntake.setPower(0);
-            robot.driveRight(.5,29);
+            robot.driveRight(.5,24);
             robot.turnDegrees(170);
             robot.moveInches(.5,60);
         }
         else if (x>=600 && x<700){
-            robot.moveInches(.5,-5);
-            robot.driveRight(.5,-30);
-            robot.lIntake.setPower(1);
-            robot.rIntake.setPower(1);
-            robot.moveInches(.5,5);
-            robot.lIntake.setPower(0);
-            robot.rIntake.setPower(0);
-            robot.driveRight(.5,30);
-            robot.turnDegrees(170);
-            robot.moveInches(1,70);
-        }
-         else {
-             robot.moveInches(.5,-5); 
-            robot.driveRight(.5,-30);
+            robot.moveInches(.5,-3);
+            robot.driveRight(.5,-28);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
             robot.moveInches(.5,7);
             robot.lIntake.setPower(0);
             robot.rIntake.setPower(0);
-            robot.driveRight(.5,28);
+            robot.driveRight(.5,24);
+            robot.turnDegrees(170);
+            robot.moveInches(1,72);
+        }
+         else {
+             robot.moveInches(.5,-5); 
+            robot.driveRight(.5,-28);
+            robot.lIntake.setPower(1);
+            robot.rIntake.setPower(1);
+            robot.moveInches(.5,7);
+            robot.lIntake.setPower(0);
+            robot.rIntake.setPower(0);
+            robot.driveRight(.5,26);
             robot.turnDegrees(170);
             robot.moveInches(1,65);
          }
@@ -161,4 +177,3 @@ public class JBlockBlueWall extends LinearOpMode {
 
     }
 }
-
