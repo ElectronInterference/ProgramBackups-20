@@ -30,6 +30,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -85,9 +86,10 @@ public class JBlockRedWall extends LinearOpMode {
     long delay = 0L;
 
     int x = -1;
-    int skyStone =-1;
-
-
+    int skyStone = -1;
+    int[] locations = new int[5];
+    int curr_slot = 0;
+    
     @Override
     public void runOpMode() {
         
@@ -95,28 +97,38 @@ public class JBlockRedWall extends LinearOpMode {
         
         robot.init(hardwareMap);
         
-          //look for the skystone until the program is started
+        //look for the skystone until the program is started
         while(!isStopRequested() && !isStarted()) {
+            telemetry.addData("status ", "initialized.");
+            telemetry.addData("skystone: ", x);
             skyStone = robot.getSkyStoneX();
             if(skyStone >= 0) {
                 x = skyStone;
-             
+                
+                //
+                locations[curr_slot] = skyStone;
+                curr_slot = curr_slot + 1;
+                if(curr_slot >=5) {
+                    curr_slot = 0;
+                }
+                
             }
-            telemetry.addData("stone loacation",x);
-            telemetry.addData("Status", "Initialized");
             telemetry.update();
         }
-       telemetry.addData("stone loacation",x);
-        telemetry.addData("Status", "Initialized");
-        telemetry.update();
+        Arrays.sort(locations);
+        if(locations[2] > 400) {
+            x = locations[2];
+            telemetry.addData("final skystone", x);
+            telemetry.update();
+        }
 
         
 
         // Wait for the game to start (driver presses PLAY)
         waitForStart();
         runtime.reset();
-        if (x>= 200 && x<280){
-           robot.moveInches(.5,-31);
+        if (x>= 100 && x<280){
+           robot.moveInches(.5,-32);
             robot.driveRight(.5,-30);
             robot.lIntake.setPower(1);
             robot.rIntake.setPower(1);
@@ -127,7 +139,7 @@ public class JBlockRedWall extends LinearOpMode {
             robot.moveInches(1,80);
             
         }
-        else if (x>=150 && x<390){
+        else if (x>280 && x<390){
             robot.moveInches(.5,-23);
             robot.driveRight(.5,-28);
             robot.lIntake.setPower(1);
@@ -146,7 +158,7 @@ public class JBlockRedWall extends LinearOpMode {
             robot.moveInches(.5,15);
             robot.lIntake.setPower(0);
             robot.rIntake.setPower(0);
-            robot.driveRight(.5,30);
+            robot.driveRight(.5,29);
             robot.moveInches(1,50);
         }
         else {robot.moveInches(.5,-15);
@@ -164,6 +176,5 @@ public class JBlockRedWall extends LinearOpMode {
         robot.rIntake.setPower(-1);
         robot.moveInches(.5,-20);
 
-        }
     }
-
+}
