@@ -22,8 +22,7 @@ public class TeleOpProto extends LinearOpMode {
     
     float armTarget = 0; // the target position for the arm
     double clawTarget = 0.5; // the target position for the servo
-    float liftTarget = 0; // the target position for the lift
-
+    double pushTarget = 0; // the target position for the pusher
     
     // variables for strafing
     double angle = 0;
@@ -54,10 +53,12 @@ public class TeleOpProto extends LinearOpMode {
         
         while (opModeIsActive()) {
             
+            telemetry.update();
+            
             //speed control
             if(gamepad1.dpad_up && powerMultiplier < 1) {
                 //powerMultiplier += 0.05;
-            } else if(gamepad1.dpad_down && powerMultiplier > 0) {
+            } else if(gamepad1.dpad_down && powerMultiplier >0) {
                 //powerMultiplier -= 0.05;
             }
             //telemetry.addData("power multiplier", powerMultiplier);
@@ -67,7 +68,7 @@ public class TeleOpProto extends LinearOpMode {
                 robot.rIntake.setPower((0.7)*(gamepad1.left_trigger - gamepad1.right_trigger));
             }
             
-            //arm control
+             //arm control
             armTarget += gamepad2.right_stick_y * -7;
             if(!robot.armTouch.isPressed()) {
                 robot.arm.setTargetPosition((int)(armTarget));
@@ -80,27 +81,25 @@ public class TeleOpProto extends LinearOpMode {
                 robot.arm.setPower(0);
             }
             
-            
             telemetry.addData("armTarget", armTarget);
             telemetry.addData("armPosition", robot.arm.getCurrentPosition());
             
-            
             //lift control
-            robot.lift.setPower(-gamepad2.left_stick_y * 0.7);
+            robot.lift.setPower(-gamepad2.left_stick_y);
             
             if(driveDirection == 0) {
                 if(mode == 0) {
                     //strafe
                     if(gamepad1.dpad_left) {
-                        robot.flDrive.setPower(-0.8 * powerMultiplier);
-                        robot.blDrive.setPower(0.8 * powerMultiplier);
-                        robot.frDrive.setPower(0.8);
-                        robot.brDrive.setPower(-0.8 * powerMultiplier);
+                        robot.flDrive.setPower(-1 * powerMultiplier);
+                        robot.blDrive.setPower(1 * powerMultiplier);
+                        robot.frDrive.setPower(1 * powerMultiplier);
+                        robot.brDrive.setPower(-1 * powerMultiplier);
                     } else if(gamepad1.dpad_right) {
-                        robot.flDrive.setPower(0.8 * powerMultiplier);
-                        robot.blDrive.setPower(-0.8 * powerMultiplier);
-                        robot.frDrive.setPower(-0.8 * powerMultiplier);
-                        robot.brDrive.setPower(0.8 * powerMultiplier);
+                        robot.flDrive.setPower(1 * powerMultiplier);
+                        robot.blDrive.setPower(-1 * powerMultiplier);
+                        robot.frDrive.setPower(-1 * powerMultiplier);
+                        robot.brDrive.setPower(1 * powerMultiplier);
                         
                         if(gamepad1.a) {
                             intakeMode = 2;
@@ -109,12 +108,9 @@ public class TeleOpProto extends LinearOpMode {
                             }
                         }
                         
-                    }
-                    
-                    
-                    //drive tank
-                    if(!gamepad1.dpad_left && !gamepad1.dpad_right) {
-                    driveTank(-gamepad1.left_stick_y * powerMultiplier, -gamepad1.right_stick_y * powerMultiplier);
+                    }else {
+                        //drive tank
+                        driveTank(-gamepad1.left_stick_y * powerMultiplier, -gamepad1.right_stick_y * powerMultiplier);
                     }
                     
                     if(gamepad1.x) {
@@ -125,7 +121,7 @@ public class TeleOpProto extends LinearOpMode {
                         }
                     }
                 } else {
-                    mecanum(gamepad1.right_stick_y, gamepad1.right_stick_x, gamepad1.left_stick_x);
+                    mecanum(gamepad1.right_stick_y, gamepad1.right_stick_x);
                     if(gamepad1.x) {
                         mode = 0;
                         while(gamepad1.x) {
@@ -166,9 +162,7 @@ public class TeleOpProto extends LinearOpMode {
                     
                     
                     //drive tank
-                    if(!gamepad1.dpad_left && !gamepad1.dpad_right) {
                     driveTank(gamepad1.right_stick_y * powerMultiplier, gamepad1.left_stick_y * powerMultiplier);
-                    }
                     
                     if(gamepad1.x) {
                         startAngle = robot.imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;
@@ -178,7 +172,7 @@ public class TeleOpProto extends LinearOpMode {
                         }
                     }
                 } else {
-                    mecanum(-gamepad1.right_stick_y, -gamepad1.right_stick_x, gamepad1.left_stick_x);
+                    mecanum(-gamepad1.right_stick_y, -gamepad1.right_stick_x);
                     if(gamepad1.x) {
                         mode = 0;
                         while(gamepad1.x) {
@@ -227,16 +221,6 @@ public class TeleOpProto extends LinearOpMode {
                 }
             }
             
-            
-            
-            //claw
-            if (gamepad2.right_bumper && clawTarget < 1){
-                clawTarget = clawTarget + 0.05;
-            } else if (gamepad2.left_bumper && clawTarget > 0.2){
-                clawTarget = clawTarget - 0.05;
-            }
-            robot.claw.setPosition(clawTarget);
-            
             //rotator
             if (gamepad2.a) {
                 robot.rotator.setPosition(1);
@@ -244,8 +228,28 @@ public class TeleOpProto extends LinearOpMode {
                 robot.rotator.setPosition(0);
             }
             
+            //claw
+            if (gamepad2.right_bumper && clawTarget < 1){
+                clawTarget = clawTarget + 0.05;
+            } else if (gamepad2.left_bumper && clawTarget > 0.2){
+                clawTarget = clawTarget - 0.05;
+                
+            }
+            robot.claw.setPosition(clawTarget);
+            
+            
+            //pusher
+            if(gamepad2.right_trigger != 0) {
+                pushTarget = 0.5;
+            }
+            if(gamepad2.left_trigger != 0) {
+                pushTarget = 0;
+            }
+            robot.lPush.setPosition(pushTarget);
+            robot.rPush.setPosition(-pushTarget + 0.5);
+            
+            telemetry.addData("pushTarget", pushTarget);
             telemetry.addData("gyro", robot.imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle);
-            telemetry.update();
         }
     }
     
@@ -269,10 +273,11 @@ public class TeleOpProto extends LinearOpMode {
     
     
     
-    private void mecanum(double joystick_y, double joystick_x, double turn) {
+    private void mecanum(double joystick_y, double joystick_x) {
 
         double power = joystick_x;
         double powerForward = joystick_y;
+        
         
         
         //set the motors to run to a position
@@ -299,13 +304,10 @@ public class TeleOpProto extends LinearOpMode {
         brPower = brPower - (currentAngle - startAngle) * pMultiplier;
         
         //Driving forwards or backwards
-        flPower -= powerForward / 1.5;
-        blPower -= powerForward / 1.5;
-        frPower -= powerForward / 1.5;
-        brPower -= powerForward / 1.5;
-        
-        //move the target based on the left joystick
-        startAngle += turn * 5;
+        flPower -= powerForward / 2;
+        blPower -= powerForward / 2;
+        frPower -= powerForward / 2;
+        brPower -= powerForward / 2;
         
         //send the calculated power to the motors
         robot.flDrive.setPower(flPower);
